@@ -1,3 +1,4 @@
+from operator import le
 import gym
 # import jbw
 import argparse
@@ -5,7 +6,7 @@ import importlib
 import time
 import random
 import numpy as np
-
+from matplotlib import pyplot as plt 
 import tensorflow as tf
 import torch
 
@@ -80,13 +81,17 @@ def train_agent(agent,
         print('timestep: {ts}, acc_reward: {acr:.2f}'.format(ts=timestep, acr=mean_acc_rewards))
         array_of_mean_acc_rewards.append(mean_acc_rewards)
 
+
+
   return array_of_mean_acc_rewards
 
 
 if __name__ == '__main__':
     
   parser = argparse.ArgumentParser(description='')
-  parser.add_argument('--group', type=str, default='GROUP1', help='group directory')
+  parser.add_argument('--group', type=str, default='GROUP_057', help='group directory')
+  parser.add_argument('--new', action='store_true', help='Specify if new weight or load weight')
+  parser.add_argument('-t','--timesteps', type=int, default= 10000, help= 'Define the number of timesteps')
   args = parser.parse_args()
 
   path = './'+args.group+'/'
@@ -106,12 +111,18 @@ if __name__ == '__main__':
   if 'mujoco' in env_type:
     env_specs = {'observation_space': env.observation_space, 'action_space': env.action_space}
   agent_module = importlib.import_module(args.group+'.agent')
-  agent = agent_module.Agent(env_specs)
-  
+  if args.new:
+    agent = agent_module.Agent(env_specs, True)
+  else:
+    agent = agent_module.Agent(env_specs, False)
   # Note these can be environment specific and you are free to experiment with what works best for you
-  total_timesteps = 10000
+  total_timesteps = args.timesteps
   evaluation_freq = 1000
   n_episodes_to_evaluate = 20
 
+  
   learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
-
+  torch.save(agent.actor, "model/actor.pth")
+  torch.save(agent.critic, "model/critic.pth")
+  plt.plot(learning_curve)
+  plt.show()
