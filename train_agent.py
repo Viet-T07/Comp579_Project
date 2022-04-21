@@ -1,5 +1,4 @@
 import gym
-import jbw
 import argparse
 import importlib
 import time
@@ -54,7 +53,7 @@ def train_agent(agent,
   random.seed(seed)
   np.random.seed(seed)
   torch.manual_seed(seed)
-  tf.random.set_seed(seed)
+  # tf.random.set_seed(seed)
   env.seed(seed)
   env_eval.seed(seed)
   
@@ -86,7 +85,7 @@ def train_agent(agent,
 if __name__ == '__main__':
     
   parser = argparse.ArgumentParser(description='')
-  parser.add_argument('--group', type=str, default='GROUP1', help='group directory')
+  parser.add_argument('--group', type=str, default='GROUP_057', help='group directory')
   args = parser.parse_args()
 
   path = './'+args.group+'/'
@@ -109,8 +108,8 @@ if __name__ == '__main__':
   agent = agent_module.Agent(env_specs)
   
   # Note these can be environment specific and you are free to experiment with what works best for you
-  total_timesteps = 2000000
-  evaluation_freq = 1000
+  total_timesteps = 2000000//2
+  evaluation_freq = 5000
   n_episodes_to_evaluate = 20
 
   learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
