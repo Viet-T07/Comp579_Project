@@ -1,149 +1,177 @@
+import math
 import numpy as np
 import torch
-from torch import nn
-from torch.optim import Adam
-import torch.nn.functional as F
-from torch.distributions import MultivariateNormal
+
+gamma_ = 0.99
+lamda_ = 0.98
+hidden_ = 64
+critic_lr_ = 0.0003
+actor_lr_ = 0.0003
+batch_size_ = 64
+l2_rate_ = 0.001
+max_kl_ = 0.01
+clip_param_ = 0.2
+
+def log_density(x, mu, std, logstd):
+    var = std.pow(2)
+    log_density = -(x - mu).pow(2) / (2 * var) \
+                  - 0.5 * math.log(2 * math.pi) - logstd
+    return log_density.sum(1, keepdim=True)
 
 
-class Agent:
+def kl_divergence(new_actor, old_actor, states):
+    mu, std, logstd = new_actor(torch.Tensor(states))
+    mu_old, std_old, logstd_old = old_actor(torch.Tensor(states))
+    mu_old = mu_old.detach()
+    std_old = std_old.detach()
+    logstd_old = logstd_old.detach()
 
-    """The agent class that is to be filled.
-        You are allowed to add any method you
-        want to this class.
-    """
+    # kl divergence between old policy and new policy : D( pi_old || pi_new )
+    # pi_old -> mu0, logstd0, std0 / pi_new -> mu, logstd, std
+    # be careful of calculating KL-divergence. It is not symmetric metric
+    kl = logstd_old - logstd + (std_old.pow(2) + (mu_old - mu).pow(2)) / \
+         (2.0 * std.pow(2)) - 0.5
+    return kl.sum(1, keepdim=True)
 
-    def __init__(self, env_specs):
-        self.env_specs = env_specs
-        self.obs_dimension = self.env_specs["observation_space"].shape[0]
-        self.act_dimension = self.env_specs["action_space"].shape[0]
-
-        # Cuda/ Cpu
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-        # Actor Critic
-        self.actor = NeuralNetwork(self.obs_dimension, self.act_dimension).to(self.device)
-        self.critic = NeuralNetwork(self.obs_dimension, 1).to(self.device)
-        
-        
-
-        # Hyperparameters
-        self.lr_actor = 3e-4# Learning rate of actor optimizer
-        self.lr_critic = 1e-3
-        self.gamma = 0.99
-        self.clip = 0.2
-        self.batch_size = 2500
-        
-        # Optimizers for both networks
-        # self.optimizer = Adam([
-        #     {'params': self.actor.parameters(), 'lr': self.lr_actor},
-        #     {'params': self.critic.parameters(), 'lr': self.lr_critic}
-        # ])
-
-        self.actor_optimizer = Adam(self.actor.parameters(), lr=self.lr_actor)
-        self.critic_optimizer = Adam(self.critic.parameters(), lr=self.lr_critic)
-        self.cov_var = torch.full(size=(self.act_dimension,), fill_value=0.5).to(self.device)
-        self.cov_mat = torch.diag(self.cov_var).to(self.device)
-
-        # Data
-        self.obs = []
-        self.action = []
-        self.reward = []
-        self.log_probs = []
-        self.done = []
-
-    def load_weights(self, root_path):
-        # Add root_path in front of the path of the saved network parameters
-        # For example if you have weights.pth in the GROUP_MJ1, do `root_path+"weights.pth"` while loading the parameters
-        pass
-    
-    def save_weights(self):
-        torch.save(self.actor.state_dict(), './ppo_actor.pth')
-        torch.save(self.critic.state_dict(), './ppo_critic.pth')
-
-    def act(self, curr_obs, mode="eval"):
-        mean = self.actor(curr_obs)
-
-        dist = MultivariateNormal(mean, self.cov_mat)
-        
-        if mode not in "eval":
-            action = dist.sample()
-            self.log_probs.append(dist.log_prob(action).detach())
-            return action.detach().cpu().numpy()
-
-        return mean.detach().cpu().numpy()
-        
-
-    def update(self, curr_obs, action, reward, next_obs, done, timestep):
-        self.reward.append(reward)
-        self.action.append(action)
-        self.obs.append(curr_obs)
-        self.done.append(done)
-
-        if timestep%self.batch_size == 0 and timestep>1:
-            # Normalizing advantage
-            value, _, _ = self.evaluate()
-            advantage = self.reward_to_go() - value.detach()
-            advantage = (advantage-advantage.mean())/(advantage.std())
-            
-            for _ in range(25):
-                probs = torch.tensor(self.log_probs,dtype=torch.float).to(self.device)
-                value, prob, dist_entropy = self.evaluate()
-                ratios = torch.exp(prob - probs).to(self.device)
-                surr1 =  ratios * advantage
-                surr2 = torch.clamp(ratios, 1.0 - self.clip, 1.0 + self.clip).to(self.device) * advantage
-                actor_loss = (-torch.min(surr1, surr2).to(self.device)).mean()
-
-                self.actor_optimizer.zero_grad()
-                actor_loss.backward(retain_graph=True)
-                self.actor_optimizer.step()
-
-                critic_loss = nn.MSELoss()(value, self.reward_to_go())
-                self.critic_optimizer.zero_grad()
-                critic_loss.backward()
-                self.critic_optimizer.step()
-                
-
-            # Reset Data
-            self.obs.clear()
-            self.action.clear()
-            self.reward.clear()
-            self.log_probs.clear()
-            self.done.clear()
-
-    def evaluate(self):
-        actt = torch.tensor(np.array(self.action),dtype=torch.float).to(self.device)
-        value = self.critic(self.obs).squeeze()
-        mean = self.actor(self.obs)
-        dist = MultivariateNormal(mean, self.cov_mat)
-        log = dist.log_prob(actt)
-        return value, log, dist.entropy()
-
-    def reward_to_go(self):
-        total = []
-        dr = 0
-        for r, done in zip(reversed(self.reward),reversed(self.done)):
-            if done:
-                dr = 0
-            dr = r + dr * self.gamma
-            total.insert(0, dr)
-        return torch.tensor(total,dtype=torch.float).to(self.device)
+def flat_grad(grads):
+    grad_flatten = []
+    for grad in grads:
+        grad_flatten.append(grad.view(-1))
+    grad_flatten = torch.cat(grad_flatten)
+    return grad_flatten
 
 
-class NeuralNetwork(nn.Module):
-	def __init__(self, in_dim, out_dim):
-		super(NeuralNetwork, self).__init__()
+def flat_hessian(hessians):
+    hessians_flatten = []
+    for hessian in hessians:
+        hessians_flatten.append(hessian.contiguous().view(-1))
+    hessians_flatten = torch.cat(hessians_flatten).data
+    return hessians_flatten
 
-		self.layer1 = nn.Linear(in_dim, 64)
-		self.layer2 = nn.Linear(64, 64)
-		self.layer3 = nn.Linear(64, out_dim)
+def flat_params(model):
+    params = []
+    for param in model.parameters():
+        params.append(param.data.view(-1))
+    params_flatten = torch.cat(params)
+    return params_flatten
 
-	def forward(self, obs):
-		# Convert observation to tensor if it's a numpy array
-		obs = torch.tensor(np.array(obs), dtype=torch.float).to(torch.device("cuda:0" if torch.cuda.is_available() else "cpu"))
 
-		activation1 = F.relu(self.layer1(obs))
-		activation2 = F.relu(self.layer2(activation1))
-		output = self.layer3(activation2)
+def update_model(model, new_params):
+    index = 0
+    for params in model.parameters():
+        params_length = len(params.view(-1))
+        new_param = new_params[index: index + params_length]
+        new_param = new_param.view(params.size())
+        params.data.copy_(new_param)
+        index += params_length
 
-		return output
+
+def get_returns(rewards, masks):
+    rewards = torch.Tensor(rewards)
+    masks = torch.Tensor(masks)
+    returns = torch.zeros_like(rewards)
+
+    running_returns = 0
+
+    for t in reversed(range(0, len(rewards))):
+        running_returns = rewards[t] + gamma_ * running_returns * masks[t]
+        returns[t] = running_returns
+
+    returns = (returns - returns.mean()) / returns.std()
+    return returns
+
+
+def get_loss(actor, returns, states, actions):
+    mu, std, logstd = actor(torch.Tensor(states))
+    log_policy = log_density(torch.Tensor(actions), mu, std, logstd)
+    returns = returns.unsqueeze(1)
+
+    objective = returns * log_policy
+    objective = objective.mean()
+    return objective
+
+
+def train_critic(critic, states, returns, critic_optim):
+    criterion = torch.nn.MSELoss()
+    n = len(states)
+    arr = np.arange(n)
+
+    for epoch in range(5):
+        np.random.shuffle(arr)
+
+        for i in range(n // batch_size_):
+            batch_index = arr[batch_size_ * i: batch_size_ * (i + 1)]
+            batch_index = torch.LongTensor(batch_index)
+            inputs = torch.Tensor(states)[batch_index]
+            target = returns.unsqueeze(1)[batch_index]
+
+            values = critic(inputs)
+            loss = criterion(values, target)
+            critic_optim.zero_grad()
+            loss.backward()
+            critic_optim.step()
+
+
+def fisher_vector_product(actor, states, p):
+    p.detach()
+    kl = kl_divergence(new_actor=actor, old_actor=actor, states=states)
+    kl = kl.mean()
+    kl_grad = torch.autograd.grad(kl, actor.parameters(), create_graph=True)
+    kl_grad = flat_grad(kl_grad)  # check kl_grad == 0
+
+    kl_grad_p = (kl_grad * p).sum()
+    kl_hessian_p = torch.autograd.grad(kl_grad_p, actor.parameters())
+    kl_hessian_p = flat_hessian(kl_hessian_p)
+
+    return kl_hessian_p + 0.1 * p
+
+
+# from openai baseline code
+# https://github.com/openai/baselines/blob/master/baselines/common/cg.py
+def conjugate_gradient(actor, states, b, nsteps, residual_tol=1e-10):
+    x = torch.zeros(b.size())
+    r = b.clone()
+    p = b.clone()
+    rdotr = torch.dot(r, r)
+    for i in range(nsteps):
+        _Avp = fisher_vector_product(actor, states, p)
+        alpha = rdotr / torch.dot(p, _Avp)
+        x += alpha * p
+        r -= alpha * _Avp
+        new_rdotr = torch.dot(r, r)
+        betta = new_rdotr / rdotr
+        p = r + betta * p
+        rdotr = new_rdotr
+        if rdotr < residual_tol:
+            break
+    return x
+
+
+def train_model(actor, critic, memory, actor_optim, critic_optim):
+    memory = np.array(memory)
+    states = np.vstack(memory[:, 0])
+    actions = list(memory[:, 1])
+    rewards = list(memory[:, 2])
+    masks = list(memory[:, 3])
+
+    # ----------------------------
+    # step 1: get returns
+    returns = get_returns(rewards, masks)
+
+    # ----------------------------
+    # step 2: train critic several steps with respect to returns
+    train_critic(critic, states, returns, critic_optim)
+
+    # ----------------------------
+    # step 3: get gradient of loss and hessian of kl
+    loss = get_loss(actor, returns, states, actions)
+    loss_grad = torch.autograd.grad(loss, actor.parameters())
+    loss_grad = flat_grad(loss_grad)
+    step_dir = conjugate_gradient(actor, states, loss_grad.data, nsteps=10)
+
+    # ----------------------------
+    # step 4: get step direction and step size and update actor
+    params = flat_params(actor)
+    new_params = params + 0.5 * step_dir
+    update_model(actor, new_params)
+
