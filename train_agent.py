@@ -62,7 +62,7 @@ def train_agent(agent,
 
   timestep = 0
   array_of_mean_acc_rewards = []
-  prev_reward = 0
+  prev_reward = 2500
     
   while timestep < total_timesteps:
 
@@ -79,7 +79,7 @@ def train_agent(agent,
         mean_acc_rewards = evaluate_agent(agent, env_eval, n_episodes_to_evaluate)
         if mean_acc_rewards > prev_reward:
           agent.save_weights()
-        prev_reward = mean_acc_rewards
+          prev_reward = mean_acc_rewards
         print('timestep: {ts}, acc_reward: {acr:.2f}'.format(ts=timestep, acr=mean_acc_rewards))
         array_of_mean_acc_rewards.append(mean_acc_rewards)
 
@@ -113,8 +113,13 @@ if __name__ == '__main__':
   
   # Note these can be environment specific and you are free to experiment with what works best for you
   total_timesteps = 2000000//2
-  evaluation_freq = 2500
+  evaluation_freq = 1000
   n_episodes_to_evaluate = 20
+  
 
-  learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
+  agent.load_weights("./")
+  for _ in range(5):
+    print(evaluate_agent(agent,env,50))
+
+  # learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
 

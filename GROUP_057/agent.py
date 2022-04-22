@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.optim import Adam
+from torch.optim import AdamW
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
@@ -32,7 +33,7 @@ class Agent:
         self.lr_critic = 1e-3
         self.gamma = 0.99
         self.clip = 0.2
-        self.batch_size = 2500
+        self.batch_size = 1000
         
         # Optimizers for both networks
         # self.optimizer = Adam([
@@ -41,7 +42,7 @@ class Agent:
         # ])
 
         self.actor_optimizer = Adam(self.actor.parameters(), lr=self.lr_actor)
-        self.critic_optimizer = Adam(self.critic.parameters(), lr=self.lr_critic)
+        self.critic_optimizer = AdamW(self.critic.parameters(), lr=self.lr_critic)
         self.cov_var = torch.full(size=(self.act_dimension,), fill_value=0.5).to(self.device)
         self.cov_mat = torch.diag(self.cov_var).to(self.device)
 
@@ -55,7 +56,8 @@ class Agent:
     def load_weights(self, root_path):
         # Add root_path in front of the path of the saved network parameters
         # For example if you have weights.pth in the GROUP_MJ1, do `root_path+"weights.pth"` while loading the parameters
-        pass
+        self.actor.load_state_dict(torch.load(f'{root_path}ppo_actor.pth'))
+        self.critic.load_state_dict(torch.load(f'{root_path}ppo_critic.pth'))
     
     def save_weights(self):
         torch.save(self.actor.state_dict(), './ppo_actor.pth')
@@ -79,6 +81,10 @@ class Agent:
         self.action.append(action)
         self.obs.append(curr_obs)
         self.done.append(done)
+        
+        if(timestep == 1000000 - 1):
+            torch.save(self.actor.state_dict(), './final_ppo_actor.pth')
+            torch.save(self.critic.state_dict(), './final_ppo_critic.pth')
 
         if timestep%self.batch_size == 0 and timestep>1:
             # Normalizing advantage
