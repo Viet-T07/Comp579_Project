@@ -4,6 +4,7 @@ import importlib
 import time
 import random
 import numpy as np
+from matplotlib import pyplot as plt
 
 import tensorflow as tf
 import torch
@@ -62,7 +63,7 @@ def train_agent(agent,
 
   timestep = 0
   array_of_mean_acc_rewards = []
-  prev_reward = 2500
+  prev_reward = 3000
     
   while timestep < total_timesteps:
 
@@ -124,6 +125,9 @@ if __name__ == '__main__':
 
   learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
 
+  plt.plot(learning_curve)
+  plt.savefig("imgs/training_curve.png")
+  plt.show()
   #Save the final weights
   torch.save(agent.actor.state_dict(), './final_ppo_actor.pth')
   torch.save(agent.critic.state_dict(), './final_ppo_critic.pth')

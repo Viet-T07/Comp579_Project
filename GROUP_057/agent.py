@@ -60,8 +60,8 @@ class Agent:
             self.actor.load_state_dict(torch.load(f'{root_path}ppo_actor.pth'))
             self.critic.load_state_dict(torch.load(f'{root_path}ppo_critic.pth'))
         else:
-            self.actor.load_state_dict(torch.load(f'{root_path}ppo_actor.pth'), map_location = torch.device("cpu"))
-            self.critic.load_state_dict(torch.load(f'{root_path}ppo_critic.pth'), map_location = torch.device("cpu"))
+            self.actor.load_state_dict(torch.load(f'{root_path}ppo_actor.pth', map_location = torch.device("cpu")))
+            self.critic.load_state_dict(torch.load(f'{root_path}ppo_critic.pth', map_location = torch.device("cpu")))
     
     def save_weights(self):
         torch.save(self.actor.state_dict(), './ppo_actor.pth')
