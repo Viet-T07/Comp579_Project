@@ -62,7 +62,6 @@ def train_agent(agent,
 
   timestep = 0
   array_of_mean_acc_rewards = []
-  prev_reward = 2500
     
   while timestep < total_timesteps:
 
@@ -71,16 +70,12 @@ def train_agent(agent,
     while not done:    
       action = agent.act(curr_obs, mode='train')
       next_obs, reward, done, _ = env.step(action)
-      env.render()
       agent.update(curr_obs, action, reward, next_obs, done, timestep)
       curr_obs = next_obs
         
       timestep += 1
       if timestep % evaluation_freq == 0:
         mean_acc_rewards = evaluate_agent(agent, env_eval, n_episodes_to_evaluate)
-        if mean_acc_rewards > prev_reward:
-          agent.save_weights()
-          prev_reward = mean_acc_rewards
         print('timestep: {ts}, acc_reward: {acr:.2f}'.format(ts=timestep, acr=mean_acc_rewards))
         array_of_mean_acc_rewards.append(mean_acc_rewards)
 
@@ -91,6 +86,7 @@ if __name__ == '__main__':
     
   parser = argparse.ArgumentParser(description='')
   parser.add_argument('--group', type=str, default='GROUP_057', help='group directory')
+  parser.add_argument('-t','--timesteps', type=int, default= 10000, help= 'Define the number of timesteps')
   args = parser.parse_args()
 
   path = './'+args.group+'/'
@@ -105,22 +101,18 @@ if __name__ == '__main__':
 
   env = get_environment(env_type) 
   env_eval = get_environment(env_type)
-  if 'jellybean' in env_type:
-    env_specs = {'scent_space': env.scent_space, 'vision_space': env.vision_space, 'feature_space': env.feature_space, 'action_space': env.action_space}
-  if 'mujoco' in env_type:
-    env_specs = {'observation_space': env.observation_space, 'action_space': env.action_space}
+  env_specs = {'observation_space': env.observation_space, 'action_space': env.action_space}
   agent_module = importlib.import_module(args.group+'.agent')
   agent = agent_module.Agent(env_specs)
   
   # Note these can be environment specific and you are free to experiment with what works best for you
-  total_timesteps = 10000
-  evaluation_freq = 10000
+  total_timesteps = args.timesteps #default = 10 000
+  evaluation_freq = 1000
   n_episodes_to_evaluate = 1
   
 
   agent.load_weights("./")
-  # for _ in range(5):
-  #   print(evaluate_agent(agent,env,50))
 
   learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
+
 

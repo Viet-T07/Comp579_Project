@@ -56,8 +56,12 @@ class Agent:
     def load_weights(self, root_path):
         # Add root_path in front of the path of the saved network parameters
         # For example if you have weights.pth in the GROUP_MJ1, do `root_path+"weights.pth"` while loading the parameters
-        self.actor.load_state_dict(torch.load(f'{root_path}ppo_actor.pth'))
-        self.critic.load_state_dict(torch.load(f'{root_path}ppo_critic.pth'))
+        if torch.cuda.is_available():
+            self.actor.load_state_dict(torch.load(f'{root_path}ppo_actor.pth'))
+            self.critic.load_state_dict(torch.load(f'{root_path}ppo_critic.pth'))
+        else:
+            self.actor.load_state_dict(torch.load(f'{root_path}ppo_actor.pth'), map_location = torch.device("cpu"))
+            self.critic.load_state_dict(torch.load(f'{root_path}ppo_critic.pth'), map_location = torch.device("cpu"))
     
     def save_weights(self):
         torch.save(self.actor.state_dict(), './ppo_actor.pth')
@@ -82,10 +86,6 @@ class Agent:
         self.obs.append(curr_obs)
         self.done.append(done)
         
-        if(timestep == 1000000 - 1):
-            torch.save(self.actor.state_dict(), './final_ppo_actor.pth')
-            torch.save(self.critic.state_dict(), './final_ppo_critic.pth')
-
         if timestep%self.batch_size == 0 and timestep>1:
             # Normalizing advantage
             value, _, _ = self.evaluate()
