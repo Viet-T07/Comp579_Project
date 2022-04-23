@@ -20,15 +20,17 @@ class Agent():
 
     self.gamma = 0.99
     self.log_probs = None
-    self.n_outputs = 3
-    input_dims = [11]
-    layer1_size = 64
-    layer2_size = 64
-    self.actor = GenericNetwork(0.0005, input_dims, layer1_size, layer2_size, n_actions = 3)
-    #3 actions bcz 3 joints
-    self.critic = GenericNetwork(0.0001, input_dims, layer1_size, layer2_size, n_actions = 1)
-    #1 action bcz 1 Q value
-    if not new_weight:
+
+    if new_weight:
+      self.n_outputs = 4
+      input_dims = [11]
+      layer1_size = 256
+      layer2_size = 128
+      self.actor = GenericNetwork(0.0001, input_dims, layer1_size, layer2_size, n_actions = self.n_outputs)
+      #4 actions bcz 3 joints, one sigma for all
+      self.critic = GenericNetwork(0.00005, input_dims, layer1_size, layer2_size, n_actions = 1)
+      #1 action bcz 1 State-value
+    else:
       self.load_weights("model/")
     
 
@@ -54,11 +56,11 @@ class Agent():
     What about mode? 'eval' or 'train'
     '''
 
-    actions = self.actor.forward(curr_obs)
+    outputs = self.actor.forward(curr_obs) #I calculate the output of the actor nn
+    mean = outputs[:3] #elt 0,1,2
+    sigma = np.sqrt(abs(outputs[3].item())) #I give the opportunity to the nn to have noise
 
-    #I add noise to the algo
-    sigma = 0.5 #hard coded choice. Instead of calculated by the algo
-    action_probs = T.distributions.Normal(actions, sigma)
+    action_probs = T.distributions.Normal(mean, sigma) #A bit of noise
     probs = action_probs.sample(sample_shape = T.Size([1]))
     self.log_probs = action_probs.log_prob(probs).to(self.actor.device)
     action = T.tanh(probs)
@@ -67,15 +69,19 @@ class Agent():
     # return self.env_specs['action_space'].sample()
     return np.array(action)[0]
 
+
   def update(self, curr_obs, action, reward, next_obs, done, timestep):
     self.actor.optimizer.zero_grad()
     self.critic.optimizer.zero_grad()
 
+    #critic value correspond to v hat
     critic_value_next = self.critic.forward(next_obs)
-    critic_value = self.critic.forward(curr_obs)
+    critic_value = self.critic.forward(curr_obs) #value of being in a state ~= discounted sum of all rewards we expect to get from this point
 
     reward = T.tensor(reward, dtype=T.float).to(self.actor.device)
     delta = reward + self.gamma * critic_value_next *(1-int(done)) - critic_value
+    #before the minus and after it are the same thing. The left part is more reliable because we have more information (a reward that we know)
+    #Delta >0 -> transition from obs to next_obs gave a greater reward than expected by critic
 
     actor_loss = -self.log_probs * delta
     critic_loss = delta**2

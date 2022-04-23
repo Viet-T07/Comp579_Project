@@ -85,7 +85,7 @@ def train_agent(agent,
 if __name__ == '__main__':
     
   parser = argparse.ArgumentParser(description='')
-  parser.add_argument('--group', type=str, default='GROUP1', help='group directory')
+  parser.add_argument('--group', type=str, default='GROUP_057', help='group directory')
   args = parser.parse_args()
 
   path = './'+args.group+'/'
@@ -103,7 +103,7 @@ if __name__ == '__main__':
   
   # Note these can be environment specific and you are free to experiment with what works best for you
   total_timesteps = 1000
-  evaluation_freq = 100
+  evaluation_freq = 1000
   n_episodes_to_evaluate = 1
 
   
