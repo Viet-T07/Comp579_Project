@@ -125,10 +125,12 @@ if __name__ == '__main__':
 
   learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
 
-  plt.plot(learning_curve)
-  plt.savefig("imgs/training_curve.png")
-  plt.show()
+  
   #Save the final weights
   torch.save(agent.actor.state_dict(), './final_ppo_actor.pth')
   torch.save(agent.critic.state_dict(), './final_ppo_critic.pth')
+
+  plt.plot(learning_curve)
+  plt.savefig("imgs/training_curve.png")
+  plt.show()
 

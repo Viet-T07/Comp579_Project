@@ -125,9 +125,14 @@ if __name__ == '__main__':
   
 
   learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
+  torch.save(agent.actor.state_dict(), 'efficiency_model/ppo_actor.pth')
+  torch.save(agent.critic.state_dict(), 'efficiency_model/ppo_critic.pth')
+
+  #Saving the data for plotting later
+  np.save("efficiency_datas/learning_curve_"+str(len(listdir("efficiency_datas"))),learning_curve)
+
+
   plt.plot(learning_curve)
   plt.savefig("imgs/sample_effiency.png")
   plt.show()
-  torch.save(agent.actor.state_dict(), 'efficiency_model/ppo_actor.pth')
-  torch.save(agent.critic.state_dict(), 'efficiency_model/ppo_critic.pth')
 
