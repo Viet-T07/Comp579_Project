@@ -97,6 +97,7 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='')
   parser.add_argument('--group', type=str, default='GROUP_057', help='group directory')
   parser.add_argument('-t','--timesteps', type=int, default= 100000, help= 'Define the number of timesteps')
+  parser.add_argument('-r','--repeat', type=int, default= 1, help= 'Define the number of timesteps')
   args = parser.parse_args()
 
   path = './'+args.group+'/'
@@ -109,30 +110,32 @@ if __name__ == '__main__':
     lines = f.readlines()
   env_type = lines[0].lower()
 
-  env = get_environment(env_type) 
-  env_eval = get_environment(env_type)
-  if 'jellybean' in env_type:
-    env_specs = {'scent_space': env.scent_space, 'vision_space': env.vision_space, 'feature_space': env.feature_space, 'action_space': env.action_space}
-  if 'mujoco' in env_type:
-    env_specs = {'observation_space': env.observation_space, 'action_space': env.action_space}
-  agent_module = importlib.import_module(args.group+'.agent')
-  agent = agent_module.Agent(env_specs)
-  
-  # Note these can be environment specific and you are free to experiment with what works best for you
-  total_timesteps = args.timesteps #default = 100 000
-  evaluation_freq = 1000
-  n_episodes_to_evaluate = 20
-  
+  for i in range(args.repeat):
+    
+    env = get_environment(env_type) 
+    env_eval = get_environment(env_type)
+    if 'jellybean' in env_type:
+      env_specs = {'scent_space': env.scent_space, 'vision_space': env.vision_space, 'feature_space': env.feature_space, 'action_space': env.action_space}
+    if 'mujoco' in env_type:
+      env_specs = {'observation_space': env.observation_space, 'action_space': env.action_space}
+    agent_module = importlib.import_module(args.group+'.agent')
+    agent = agent_module.Agent(env_specs)
+    
+    # Note these can be environment specific and you are free to experiment with what works best for you
+    total_timesteps = args.timesteps #default = 100 000
+    evaluation_freq = 1000
+    n_episodes_to_evaluate = 20
+    
 
-  learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
-  torch.save(agent.actor.state_dict(), 'efficiency_model/ppo_actor.pth')
-  torch.save(agent.critic.state_dict(), 'efficiency_model/ppo_critic.pth')
+    learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
+    torch.save(agent.actor.state_dict(), 'efficiency_model/ppo_actor.pth')
+    torch.save(agent.critic.state_dict(), 'efficiency_model/ppo_critic.pth')
 
-  #Saving the data for plotting later
-  np.save("efficiency_datas/learning_curve_"+str(len(listdir("efficiency_datas"))),learning_curve)
+    #Saving the data for plotting later
+    np.save("efficiency_datas/learning_curve_"+str(len(listdir("efficiency_datas"))),learning_curve)
 
 
-  plt.plot(learning_curve)
-  plt.savefig("imgs/sample_effiency.png")
-  plt.show()
+  # plt.plot(learning_curve)
+  # plt.savefig("imgs/sample_effiency.png")
+  # plt.show()
 
