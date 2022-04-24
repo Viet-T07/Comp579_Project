@@ -91,7 +91,7 @@ if __name__ == '__main__':
     
   parser = argparse.ArgumentParser(description='')
   parser.add_argument('--group', type=str, default='GROUP_057', help='group directory')
-  parser.add_argument('-t','--timesteps', type=int, default= 100000, help= 'Define the number of timesteps')
+  parser.add_argument('-t','--timesteps', type=int, default=100000, help='Define the number of timesteps')
   args = parser.parse_args()
 
   path = './'+args.group+'/'
