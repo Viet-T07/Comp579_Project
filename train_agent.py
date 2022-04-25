@@ -114,12 +114,12 @@ if __name__ == '__main__':
   agent = agent_module.Agent(env_specs)
   
   # Note these can be environment specific and you are free to experiment with what works best for you
-  total_timesteps = args.timesteps #default = 100 000
+  total_timesteps = 1000000 # args.timesteps #default = 100 000
   evaluation_freq = 1000
   n_episodes_to_evaluate = 20
   
 
-  agent.load_weights("./")
+  # agent.load_weights("./")
   # for _ in range(5):
   #   print(evaluate_agent(agent,env,50))
 

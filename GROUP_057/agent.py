@@ -33,7 +33,7 @@ class Agent:
         self.lr_critic = 1e-3
         self.gamma = 0.99
         self.clip = 0.2
-        self.batch_size = 1250
+        self.batch_size = 1300
         
         # Optimizers for both networks
         # self.optimizer = Adam([
