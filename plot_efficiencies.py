@@ -19,11 +19,16 @@ mean_curves = np.divide(mean_curves, n_curves)
 
 
 #Calculate AUC
-x = [i for i in range(len(mean_curves))]
-print("AUC = ",metrics.auc(x,mean_curves))
+# x = [i for i in range(len(mean_curves))]
+# print("AUC = ",metrics.auc(x,mean_curves))
+
+#Calculate mean of the mean_curves
+print("Mean = ",np.mean(mean_curves))
 
 #Plot
 for curve in curves:
     plt.plot(curve,'red')
 plt.plot(mean_curves,'blue')
+plt.savefig("imgs/sample_efficiency_mean.png")
 plt.show()
+
