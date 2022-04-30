@@ -22,11 +22,9 @@ class Agent:
         # Cuda/ Cpu
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-        # Actor Critic
+        # Actor Critic Networks
         self.actor = NeuralNetwork(self.obs_dimension, self.act_dimension).to(self.device)
         self.critic = NeuralNetwork(self.obs_dimension, 1).to(self.device)
-        
-        
 
         # Hyperparameters
         self.lr_actor = 3e-4# Learning rate of actor optimizer
@@ -34,15 +32,12 @@ class Agent:
         self.gamma = 0.99
         self.clip = 0.2
         self.batch_size = 1250
-        
-        # Optimizers for both networks
-        # self.optimizer = Adam([
-        #     {'params': self.actor.parameters(), 'lr': self.lr_actor},
-        #     {'params': self.critic.parameters(), 'lr': self.lr_critic}
-        # ])
 
+        # Optimizers for both networks
         self.actor_optimizer = Adam(self.actor.parameters(), lr=self.lr_actor)
         self.critic_optimizer = AdamW(self.critic.parameters(), lr=self.lr_critic)
+        
+        #Covariance matrix for multivariate distribution
         self.cov_var = torch.full(size=(self.act_dimension,), fill_value=0.5).to(self.device)
         self.cov_mat = torch.diag(self.cov_var).to(self.device)
 
@@ -67,6 +62,7 @@ class Agent:
         torch.save(self.actor.state_dict(), './ppo_actor.pth')
         torch.save(self.critic.state_dict(), './ppo_critic.pth')
 
+    # Select mean of distribution when evaluating, sample when training
     def act(self, curr_obs, mode="eval"):
         mean = self.actor(curr_obs)
 
@@ -81,29 +77,34 @@ class Agent:
         
 
     def update(self, curr_obs, action, reward, next_obs, done, timestep):
+        
+        # Append elements to create batch
         self.reward.append(reward)
         self.action.append(action)
         self.obs.append(curr_obs)
         self.done.append(done)
         
+        # Performe update at batch size
         if timestep%self.batch_size == 0 and timestep>1:
             # Normalizing advantage
             value, _, _ = self.evaluate()
             advantage = self.reward_to_go() - value.detach()
             advantage = (advantage-advantage.mean())/(advantage.std())
             
+            # Update for n iterations
             for _ in range(25):
                 probs = torch.tensor(self.log_probs,dtype=torch.float).to(self.device)
                 value, prob, dist_entropy = self.evaluate()
                 ratios = torch.exp(prob - probs).to(self.device)
                 surr1 =  ratios * advantage
                 surr2 = torch.clamp(ratios, 1.0 - self.clip, 1.0 + self.clip).to(self.device) * advantage
+                
+                # Backpropagate loss for both networks
                 actor_loss = (-torch.min(surr1, surr2).to(self.device)).mean()
-
                 self.actor_optimizer.zero_grad()
                 actor_loss.backward(retain_graph=True)
                 self.actor_optimizer.step()
-
+                
                 critic_loss = nn.MSELoss()(value, self.reward_to_go())
                 self.critic_optimizer.zero_grad()
                 critic_loss.backward()
@@ -125,17 +126,19 @@ class Agent:
         log = dist.log_prob(actt)
         return value, log, dist.entropy()
 
+    # Calculate discounted rewards
     def reward_to_go(self):
         total = []
         dr = 0
         for r, done in zip(reversed(self.reward),reversed(self.done)):
+            # Reset discount when an episode is over
             if done:
                 dr = 0
             dr = r + dr * self.gamma
             total.insert(0, dr)
         return torch.tensor(total,dtype=torch.float).to(self.device)
 
-
+# Simple Neural Network for Actor/Critic
 class NeuralNetwork(nn.Module):
 	def __init__(self, in_dim, out_dim):
 		super(NeuralNetwork, self).__init__()
@@ -145,7 +148,6 @@ class NeuralNetwork(nn.Module):
 		self.layer3 = nn.Linear(64, out_dim)
 
 	def forward(self, obs):
-		# Convert observation to tensor if it's a numpy array
 		obs = torch.tensor(np.array(obs), dtype=torch.float).to(torch.device("cuda:0" if torch.cuda.is_available() else "cpu"))
 
 		activation1 = F.relu(self.layer1(obs))
